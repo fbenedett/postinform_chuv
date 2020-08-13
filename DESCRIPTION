@@ -1,0 +1,16 @@
+Package: postinform
+Type: Package
+Title: Post-process cell immunofluorescence data produced by the inForm software
+Version: 0.1.0
+Author: Robin Engler, Martial Sankar
+Maintainer: Robin Engler <robin.engler@sib.swiss>
+Description: More about what it does (maybe more than one line)
+    Use four spaces when indenting paragraphs within the Description.
+License: Not released yet
+Encoding: UTF-8
+LazyData: true
+Imports:
+    zip,
+    openxlsx,
+    checkmate
+RoxygenNote: 7.1.1
