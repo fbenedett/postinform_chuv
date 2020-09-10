@@ -93,7 +93,7 @@ postinform <- function(input_file_or_dir,
     # ********************************************************
     # If the input is a compressed .zip or .tar.gz file, decompress it.
     if(!file.info(input_file_or_dir)$isdir){
-        message("Decompressing ", input_file_or_dir, " ...")
+        message("Decompressing ", input_file_or_dir, "...")
         input_dir = decompress_file(input_file_or_dir)
     }
 
@@ -178,9 +178,11 @@ postinform_pipeline <- function(input_dir,
     #  - search for cell and tissue segmentation files in sub-directories or the session root.
     log_message('Input data check:')
     log_message(paste('input directory:', input_dir), level=2)
+
     #delete_unnecessary_files(input_dir)
     inputdir_check(input_dir, output_dir)
     log_message('input dir check: OK', level=2)
+
     input_parameters = load_session_parameters(output_dir)
     log_message('session parameters: OK', level=2)
     log_message('completed', level=2, add_empty_line=TRUE)
