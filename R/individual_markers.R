@@ -229,7 +229,7 @@ merge_tissue_data_files <- function(files_to_merge){
                         file_name = f)
         stopifnot(all(colnames(input_df) == c(key_fields, non_key_fields)))
 
-        # Merge data frame for the current marker with the global dataframe 'merged_df'.
+        # Merge data frame for the current marker with the global data frame 'merged_df'.
         if(is.null(merged_df)){
             merged_df = input_df
         } else{
@@ -240,34 +240,22 @@ merge_tissue_data_files <- function(files_to_merge){
         }
     }
 
-    # Search for mismatches among values of non-key fields. If some are detected, a warning
-    # is displayed. For rows with mismatches, if any, compute the median of surface values. In
-    # this way, if one of the input files has a different values it gets excluded (provided there
-    # are at least 3 files).
-    mismatches = NULL
-    for(col_name in non_key_fields){
-        col_index = grep(col_name, colnames(merged_df))
-        difference = abs(merged_df[,col_index] - merged_df[,col_index[1]])
-        mismatches = unique(c(mismatches, which(apply(difference, MARGIN=1, sum) > 0)))
-    }
-    if(length(mismatches) > 0){
-        percentage = round(length(mismatches)/nrow(merged_df) * 100, 2)
-        raise_error(msg = c('Mismatches in tissue surface among tissue seg files were found',
-                            'Median value of tissue surface will be used for the following rows:',
-                            paste0(paste(mismatches, collapse=', '), ' [', percentage, '%]')),
-                    file = dirname(files_to_merge[1]),
-                    type='warning')
-
-        # Compute median values to reconciliate mismatches.
-        for(col_name in non_key_fields){
-            col_index = grep(col_name, colnames(merged_df))
-            merged_df[mismatches, col_index[1]] = apply(merged_df[mismatches, col_index], 1, median)
-        }
+    # Merge tissue surface values (absolute value or percentage).
+    # The merge is made by keeping the smallest surface value from the individual files. This is
+    # because, when merging cells value, we keep the intersection of all individual files, which,
+    # in terms of surface, corresponds (roughly) to the smallest surface value in the tissue
+    #surface files.
+    for(i in 1:nrow(merged_df)){
+        # Identify column with the smallest surface value.
+        col_index = grep('region_area_surface', colnames(merged_df))
+        min_index = which(merged_df[i, col_index] == min(merged_df[i, col_index]))[1]
+        # Replace tissue surface values with the minimum value across all files.
+        merged_df[i, 'region_area_surface'] = merged_df[i, col_index[min_index]]
+        merged_df[i, 'region_area_percent'] = merged_df[i, col_index[min_index] + 1]
     }
 
     # Remove duplicated columns.
-    merged_df = merged_df[,1:5]
-    return(merged_df)
+    return(merged_df[,1:5])
 }
 ####################################################################################################
 

@@ -542,34 +542,44 @@ extract_imageid <- function(input_vector, input_file='file not specified'){
 
 
 ####################################################################################################
-decompress_file <- function(input_file, dry_run=FALSE){
+decompress_file <- function(input_file, allow_overwrite=FALSE, dry_run=FALSE){
     # ********************************************************************************************
     # Decompress .zip and .tar.gz input files and return the directory containing the uncompressed
     # data.
     #
     # Input parameters:
-    #  -> input_file: input .tar.gz or .zip file to uncompress.
+    #  -> input_file: input .tar.gz or .zip file to decompress.
     # ********************************************************************************************
     root_dir = dirname(input_file)
 
-    # Input file is tarball.
+    # Determine archive type:
     if(endsWith(input_file, '.tar.gz')){
-        data_dir = file.path(root_dir, unlist(strsplit(untar(input_file, list=TRUE)[1], '/'))[1])
-        if(dry_run) return(data_dir)
-        if(dir.exists(data_dir)) unlink(data_dir, recursive=TRUE)
-        untar(input_file, list=FALSE, exdir=root_dir)
-
-    # Input file is zip archive.
+        type = 'tar'
     } else if(endsWith(input_file, '.zip')){
+        type = 'zip'
+    } else stop('Unsupported compression format. Only [.tar.gz] and [.zip] files are supported.')
+
+    # Determine output directory:
+    if(type == 'tar'){
+        data_dir = file.path(root_dir, unlist(strsplit(untar(input_file, list=TRUE)[1], '/'))[1])
+    } else if(type == 'zip'){
         data_dir = file.path(root_dir,
                              unlist(strsplit(zip::zip_list(zipfile=input_file)[1,1], '/'))[1])
-        if(dry_run) return(data_dir)
-        if(dir.exists(data_dir)) unlink(data_dir, recursive=TRUE)
+    }
+    if(dry_run) return(data_dir)
+
+    # Test whether output already exists, and if yes delete it if allowed by user.
+    if(dir.exists(data_dir)){
+        if(!allow_overwrite) stop('File decompression failed: output already exists [',data_dir,']')
+        unlink(data_dir, recursive=TRUE)
+    }
+
+    # Decompress file.
+    if(type == 'tar'){
+        untar(input_file, list=FALSE, exdir=root_dir)
+    } else if(type == 'zip'){
         zip::unzip(input_file, exdir=root_dir, overwrite=TRUE)
-
-    # Unsupported compression format.
-    } else stop('Unsupported compression format.')
-
+    }
 
     # Return dirname of extracted files.
     stopifnot(file.info(data_dir)$isdir)

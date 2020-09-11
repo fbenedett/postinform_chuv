@@ -62,3 +62,47 @@ This command will produce an output file named "Test_session_random_suffix.zip".
 postinform(input_file_or_dir="Test_session.zip", command='process', output_suffix="random_suffix",
          compress_output=TRUE, immucan_output=TRUE, allow_overwrite=FALSE)
 ```
+
+
+
+### Post-inForm input parameter file format.
+The list of samples, tissues, markers and marker combinations to process are passed to post-inForm 
+via a single plain text file that must be named `parameters.txt` and be located at the root of the 
+input directory.
+**Important:** for **Windows users**, the `parameters.txt` file should be encoded in `UTF-8` 
+
+The parameters input file must contain the following 5 sections. For each section, values can be 
+passed on the same line separated by a `,`, or on multiple lines (one value per line). Any line 
+starting the a `#` value is ignored (allows to add comments to file).  
+For the `marker_combinations:` section, the special value `all` can be passed to process all 
+possible combinations of markers (to avoid having to enter all combinations manually).
+```
+samples:
+tissues:
+phenotyped_markers:
+scored_markers: 
+marker_combinations: 
+```
+
+A template file can be downloaded [here](tests/parameters.txt).  
+`parameters.txt` file example:
+```
+# List of samples to process.
+samples:
+SAMPLE_1
+SAMPLE_2
+SAMPLE_3
+
+# List of tissues to process.
+tissues: stroma, tumor
+
+# List of markers.
+phenotyped_markers: CD20, CD3, CD68
+scored_markers: 
+
+# Marker combinations to test
+marker_combinations: all
+```
+
+
+

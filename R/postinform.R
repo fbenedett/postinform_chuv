@@ -94,7 +94,7 @@ postinform <- function(input_file_or_dir,
     # If the input is a compressed .zip or .tar.gz file, decompress it.
     if(!file.info(input_file_or_dir)$isdir){
         message("Decompressing ", input_file_or_dir, "...")
-        input_dir = decompress_file(input_file_or_dir)
+        input_dir = decompress_file(input_file_or_dir, allow_overwrite=allow_overwrite)
     }
 
     # Create output directory and log file.

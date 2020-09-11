@@ -1,0 +1,14 @@
+# Post-inForm input parameter template.
+# List of samples to process.
+samples:
+
+
+# List of tissues to process.
+tissues: stroma, tumor
+
+# List of markers.
+phenotyped_markers:
+scored_markers: 
+
+# Marker combinations to test
+marker_combinations: all
