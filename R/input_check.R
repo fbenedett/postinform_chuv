@@ -237,7 +237,7 @@ standardize_and_split_tissue_data <- function(input_file,
     #
     # Input arguments:
     #  -> input_file:  string. Path + name of tissue data file to process.
-    #  -> delete_input_file: boolean. If TRUE, the original input_file is deleted at the end of
+    #  -> delete_input_file: logical. If TRUE, the original input_file is deleted at the end of
     #                        the function, after it was split by samples.
     #
     # Return value:
@@ -263,7 +263,8 @@ standardize_and_split_tissue_data <- function(input_file,
     sample_names = extract_sample_name(input_table[,'sample_name'], input_file=input_file)
     input_table = input_table[sample_names %in% samples,]
     sample_names = sample_names[sample_names %in% samples]
-    if(nrow(input_table) == 0) raise_error('Input file has zero rows.', file=input_file)
+    if(nrow(input_table) == 0) raise_error('Input file has zero rows for samples:',
+                                           paste(samples, collapse=', '), file=input_file)
 
 
     # Extract image ID values. If the "annotation_id" column is present (inForm 2.4), extract

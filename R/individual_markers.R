@@ -89,11 +89,11 @@ merge_cell_data_files <- function(files_to_merge){
             row_count = nrow(merged_df)
             merged_df = merge(merged_df, input_df, by=key_fields, all=FALSE, sort=FALSE)
 
-            # Compute percentage of data loss due to merge operation. If it's more than 2% a
-            # warning is issued.
+            # Compute percentage of data loss due to merge operation. If it's more than
+            # FILE_LOSS_PERCENTAGE_THRESHOLD percent, a warning is raised.
             row_loss_percentage = round((row_count - nrow(merged_df)) / row_count * 100, 2)
-            if(row_loss_percentage > 5) raise_error(
-                msg = c(paste0('A large number of records were lost while merging file [',
+            if(row_loss_percentage > FILE_LOSS_PERCENTAGE_THRESHOLD) raise_error(
+                msg = c(paste0('Large number of records lost while merging cell data files [',
                                row_loss_percentage, '%].'),
                      'This could indicate a problem in the input data and should be investigated.'),
                 file = f,
@@ -120,7 +120,7 @@ merge_cell_data_files <- function(files_to_merge){
     # In principle, the "Tissue Category" columns of all individual markers should contain the
     # same value. Here we verify that this is the case and then keep only one copy of them.
     if(any(tissue_cat_df != tissue_cat_df[,1])){
-        diff_rows = sort(unique(unlist(sapply(2:ncol(tissue_cat_df),
+        diff_rows = sort(unique(unlist(lapply(2:ncol(tissue_cat_df),
                                 FUN=function(x) which(tissue_cat_df[x] != tissue_cat_df[,1])))))
         for(x in diff_rows){
             value_frequency = sort(table(as.character(tissue_cat_df[x,])), decreasing=T)
@@ -130,11 +130,12 @@ merge_cell_data_files <- function(files_to_merge){
             # possible and the most frequent value is used.
             if(as.numeric(value_frequency[1]) > as.numeric(value_frequency[2])){
                 tissue_cat_df[x,] = names(value_frequency)[1]
-                raise_error(msg = c(paste0('tissue_category values differ accorss files. ',
-                                           'Values were reconciled based on majority ruling.'),
-                                    paste0('Offending row: ', x)),
-                            file=files_to_merge[1],
-                            type = 'warning')
+                if(SHOW_TISSUE_CATEGORY_MISMATCH_WARNING) raise_error(
+                    msg = c(paste0('Tissue_category values differ across files. ',
+                                   'Values were reconciled based on majority ruling.'),
+                            paste0('Offending row: ', x)),
+                    file=files_to_merge[1],
+                    type = 'warning')
 
             # Case 2: majority ruling is not possible
             } else{
@@ -154,10 +155,15 @@ merge_cell_data_files <- function(files_to_merge){
 
     # Combine data from all 'Phenotype' columns.
     # *****************************************
-    # Each 'Phenotype' column contains the phenotyping for one or more individual marker. Here we
+    # Each "Phenotype" column contains the phenotyping for one or more individual marker. Here we
     # want to merge all these columns into a single column that will contain all phenotyping
     # information. If more than one marker is found for a given row, they get combined with a '_'
-    # separator. E.g. if 'CD8' and 'PD1' are found in same row, the combination becomes 'CD8_PD1'.
+    # separator. E.g. if 'CD8p' and 'PD1p' are found in same row, the combination becomes
+    # 'CD8p_PD1p'.
+    # "Phenotype" values that are part of IGNORED_PHENOTYPES are removed at this point if they are
+    # combined with other markers, so for instance 'CD8p_DAPIp_PD1p' becomes 'CD8p_PD1p'. If
+    # all individual files contain "DAPIp", then a single "DAPIp" value is kept, e.g.
+    # "DAPIp_DAPIp_DAPIp" becomes "DAPIp".
     regexp = paste(sapply(IGNORED_PHENOTYPES, FUN=function(x) paste0(x,'_|_',x)), collapse = '|')
     merged_df[,'phenotype'] = apply(phenotype_df, MARGIN=1,
                                     FUN=function(x) gsub(pattern = regexp,
@@ -168,20 +174,19 @@ merge_cell_data_files <- function(files_to_merge){
     # Combine data from all marker intensity columns.
     # **********************************************
     # Verify that all marker intensity columns in the merge data frame have the same values and
-    # keep only one copy of them. A difference in values <= 0.01 is accepted.
+    # keep only one copy of them. A difference in values <= MARKER_INTENSITY_THRESHOLD is accepted.
     marker_intensity_cols = grep('_mean$', col_names, value=TRUE)
-    tolerance_limit = 0.01
     for(col_name in marker_intensity_cols){
         col_index = grep(col_name, colnames(marker_int_df))
         differences = abs(marker_int_df[,col_index] - marker_int_df[,col_index[1]])
-        differing_values = which(differences > tolerance_limit)
+        differing_values = which(differences > MARKER_INTENSITY_THRESHOLD)
 
-        # If there are values > tolerance_limit, an warning is displayed to the user.
+        # If there are values > MARKER_INTENSITY_THRESHOLD, an warning is displayed to the user.
         if(length(differing_values) > 0){
             differing_values = as.vector(as.matrix(differences))[differing_values]
             raise_error(
                 msg=c(paste0('Values for column [', col_name, '] differ accross individual files'),
-                      paste0('to merge by more than ', tolerance_limit, ' at ',
+                      paste0('to merge by more than ', MARKER_INTENSITY_THRESHOLD, ' at ',
                              length(differing_values), ' occurences [',
                              round(length(differing_values)/nrow(marker_int_df)*100, 3), '%].'),
                       'Values from the first file (alphabetically) will be used.'),
@@ -236,7 +241,18 @@ merge_tissue_data_files <- function(files_to_merge){
             # Append suffix to non-key fields, so they have a unique name and get preserved
             # during the merge.
             colnames(input_df)[4:5] = paste0(non_key_fields, '_', which(files_to_merge %in% f))
+            row_count = nrow(merged_df)
             merged_df = merge(merged_df, input_df, by=key_fields, all=FALSE, sort=FALSE)
+
+            # Compute percentage of data loss due to merge operation. If it's more than
+            # FILE_LOSS_PERCENTAGE_THRESHOLD percent, a warning is raised.
+            row_loss_percentage = round((row_count - nrow(merged_df)) / row_count * 100, 2)
+            if(row_loss_percentage > FILE_LOSS_PERCENTAGE_THRESHOLD) raise_error(
+                msg = c(paste0('Large number of records lost while merging tissue data files [',
+                               row_loss_percentage, '%].'),
+                        'This could indicate a problem in the input data and should be investigated.'),
+                file = f,
+                type = 'warning')
         }
     }
 

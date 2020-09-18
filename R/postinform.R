@@ -132,7 +132,7 @@ postinform <- function(input_file_or_dir,
     if(!file.info(input_file_or_dir)$isdir) unlink(input_dir, recursive=TRUE)
     if(command == 'check') unlink(output_dir, recursive=TRUE)
     if(compress_output){
-        message("Compressing and cleaning up data...")
+        message("Compressing and cleaning-up data...")
         if(file.exists(output_zip)) unlink(output_zip)
 
         # Data is compressed to .zip instead of .tar.gz to make things more windows friendly.
@@ -206,7 +206,7 @@ postinform_pipeline <- function(input_dir,
                              output_dir = file.path(output_dir, basename(subdir)),
                              cell_compartment = input_parameters$cell_compartment)
 
-        # Case 2: the function is running on a GNU-Linux operating system. The data reduction
+        # Case 2: the function is running on a GNU/Linux operating system. The data reduction
         # process can be done with a bash script (faster than R code).
         # Note that we need to add quotes (') around the subdir strings for the case where there
         # is a white space in the path name. This is needed here because we pass the directory

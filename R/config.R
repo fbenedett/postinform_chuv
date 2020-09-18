@@ -20,8 +20,8 @@ AUTHORIZED_STROMA_VALUES <<- c('DAPI', 'stroma', 'other')
 AUTHORIZED_TUMOR_VALUES  <<- c('CK', 'tumor')
 AUTHORIZED_MARKERS       <<- c('CAL', 'CD3', 'CD4', 'CD8', 'CD11C', 'CD15', 'CD20', 'CD56', 'CD68',
                                'CD103', 'CD163', 'CD206', 'FOXP3', 'GB', 'gH2AX', 'gH2AXN', 'IDO',
-                               'Keratin', 'KI67', 'PD1', 'PDL1', 'PERFORIN', 'SOX10', 'WT1', 'CK',
-                               'VISTA')
+                               'IL10R', 'Keratin', 'KI67', 'PD1', 'PDL1', 'PERFORIN', 'SOX10',
+                               'WT1', 'CK', 'VISTA')
 IGNORED_PHENOTYPES       <<- c('DAPIp', 'MISSING')
 
 DATAREDUCE_SCRIPT      <<- file.path(dirname(dirname(sys.frame(1)$ofile)),
@@ -34,6 +34,19 @@ SAMPLE_RENAME_FILE     <<- 'sample_rename.txt'
 SEGMENTATION_DATA_DIR  <<- 'seg_data'
 SUMMARY_OUTPUT_DIR     <<- 'summary_statistics'
 LOG_FILE_NAME          <<- 'log.txt'
+
+# Individual marker files merging thresholds.
+# These parameters are the thresholds above which a warning is displayed when merging individual
+# files. They have no impact on the actual output, only on the display of warning messages.
+#  * MARKER_INTENSITY_THRESHOLD: difference in marker intensity values (between individual files)
+#    above which a warning is shown.
+#  * FILE_LOSS_PERCENTAGE_THRESHOLD: threshold (as a percentage) above which a warning is
+#    displayed during file merging.
+#  * SHOW_TISSUE_CATEGORY_MISMATCH_WARNING: if TRUE, the
+#    "Tissue_category values differ across files" is shown. Otherwise the warning is skipped.
+MARKER_INTENSITY_THRESHOLD     <<- 0.01
+FILE_LOSS_PERCENTAGE_THRESHOLD <<- 5
+SHOW_TISSUE_CATEGORY_MISMATCH_WARNING <<- TRUE
 
 # InForm version data formats supported.
 SUPPORTED_INFORM_VERSIONS <<- c(2.2, 2.4)

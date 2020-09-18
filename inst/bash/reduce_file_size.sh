@@ -58,7 +58,7 @@ for fileName in "${fileList[@]}"; do
     [[ $verbose -eq 1 ]] && echo "###  -> ${fileName}"
 
     colsToKeep=$( head -n1 "$fileName" | tr '\t' '\n' | \
-                  grep -i -n "^Sample Name$\|^Tissue Category$\|^Phenotype$\|^Cell ID$\|^Cell X Position$\|^Cell Y Position$\|^Confidence$\|^Annotation ID$\|^${cellCompartment} .* Mean " | \
+                  grep -i -n "^Sample Name$\|^Tissue Category$\|^Phenotype$\|^Cell ID$\|^Cell X Position$\|^Cell Y Position$\|^Annotation ID\|^Confidence\|^${cellCompartment} .* Mean " | \
                   cut -f1 --delimiter=':' )
     [[ -z $colsToKeep ]] && echo "### ERROR: no columns to keep found in [$fileName]" && exit 1
 
@@ -87,7 +87,7 @@ for fileName in "${fileList[@]}"; do
     [[ $verbose -eq 1 ]] && echo "###  -> ${fileName}"
 
     colsToKeep=$( head -n1 "$fileName" | tr '\t' '\n' | \
-                  grep -n "^Sample Name$\|^Tissue Category$\|^Region Area\|^Annotation ID$" | \
+                  grep -n "^Sample Name$\|^Tissue Category$\|^Region Area\|^Annotation ID" | \
                   cut -f1 --delimiter=':' )
     [[ -z $colsToKeep ]] && echo "### ERROR: no columns to keep found in [$fileName]" && exit 1
 
