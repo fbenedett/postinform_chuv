@@ -131,19 +131,19 @@ merge_cell_data_files <- function(files_to_merge){
             if(as.numeric(value_frequency[1]) > as.numeric(value_frequency[2])){
                 tissue_cat_df[x,] = names(value_frequency)[1]
                 if(SHOW_TISSUE_CATEGORY_MISMATCH_WARNING) raise_error(
-                    msg = c(paste0('Tissue_category values differ across files. ',
+                    msg = c(paste0('[tissue_category] values differ across files. ',
                                    'Values were reconciled based on majority ruling.'),
                             paste0('Offending row: ', x)),
-                    file=files_to_merge[1],
+                    file = files_to_merge[1],
                     type = 'warning')
 
-            # Case 2: majority ruling is not possible
+            # Case 2: majority ruling is not possible.
             } else{
                 raise_error(
                     msg = c('Could not merge individual marker files.',
                             'Reason: tissue_category values differ across files with no majority.',
                             paste0('Offending row: ', x),
-                            paste0('Offending values:', paste(tissue_cat_df[x,], collapse=' '))),
+                            paste0('Offending values: ', paste(tissue_cat_df[x,], collapse=' '))),
                     file = files_to_merge[1])
             }
         }

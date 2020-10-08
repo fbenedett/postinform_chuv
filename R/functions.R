@@ -16,122 +16,112 @@ check_for_duplicated_rows <- function(data_frame){
 
 
 ####################################################################################################
-reclass_cells_by_marker <- function(marker,
-                                    cell_values,
-                                    thresholds = NULL){
-    # ********************************************************************************************
-    # Computes a binary vector indicating whether a cell is positive for a given marker (1) or
-    # not (0). The function accepts cell_values that are either phenotypes, or marker intensity
-    # values.
-    #
-    # Input arguments:
-    #   marker     : string. Name of marker for which to reclassify cells.
-    #   cell_values: if the marker was phenotyped: must be a vector of strings.
-    #                if the marker was scored: must be a vector of floats.
-    #   thresholds : list of thresholds for the given marker. If the marker was phenotyped (as
-    #                opposed to scored), then thresholds must be set to NULL. This is how the
-    #                function knows that the maker is phenotyped.
-    # ********************************************************************************************
+#' Reclass input 'cell_values' into a binary vector indicating whether a cell is positive for a
+#' given marker (1) or not (0). This function is for phenotyped markers and expects 'cell_values'
+#' to be a vector of strings.
+#'
+#' @param marker [string] Name of marker for which to reclass cells. This must be a single marker.
+#' @param cell_values [string vector] List of cell values (phenotypes) to reclassify.
+#'
+reclass_cells_by_marker_phenotyped <- function(marker, cell_values){
 
-    # Case 1: marker was phenotyped.
-    # *****************************
-    if(length(thresholds) == 0){
-    # Test whether the elements of the cell_values vector contain the string "markerName + p".
-    # E.g. for CD11c, we test if the phenotype contains the string "CD11cp".
-    # "partial matches", means that if we are searching for say "CD11", then all cells
-    #                    whose phenotype contains "CD11p" (e.g. "CD11p", "CD11p_CD86p" or "CD8p_CD11p_CD86p") will be
-    #                    reclassified as 1 (the marker is present in the cell). Note that if the marker apprears in the
-    #                    phenotype with a "m", e.g. "CD8p_CD11m", then this is not counted as a match since the "m"
-    #                    stands for "minus", meaning the marker is not present in the cell.
-        marker = paste0(marker, 'p')
-        stopifnot(is.character(cell_values))
-        return(sapply(strsplit(cell_values, split='_'), FUN=function(x) ifelse(marker %in% x,1,0)))
-    }
+    # Verify input values.
+    stopifnot(is.character(cell_values))
 
-
-    # Case 2: marker was scored.
-    # **************************
-    # In this case we reclass the values depending on whether they are >= or < than the threshold.
-    # Values >= threshold get reclassified as 1, while values < threshold get reclassified as 0.
-    stopifnot(is.numeric(cell_values))
-
-    stop("########### NOT IMPLEMENTED YET !!!!")
-    # Create temporary vector of thresholds. This vector has the same length as the number of rows in
-    # the cell table, and simply contains the threshold value coresponding to the tissue type for
-    # each row of the cell table.
-    thresholdVector = as.numeric(sapply(intensity_table[,'tissue_category'],
-                                        FUN=function(x) thresholdList[1,x]))
-
-    # Test whether intensity value is >= threshold.
-    return(as.numeric(intensity_table[,tmpColNb] > thresholdVector))
+    # For each phenotype value, test whether maker is part of the phenotype. E.g. test whether
+    # "CD8" is part of "KI67p_CD8p_CD11cp".
+    marker = paste0(marker, 'p')
+    return(as.numeric(sapply(strsplit(cell_values, split='_'), FUN=function(x) marker %in% x)))
 }
 ####################################################################################################
 
 
 
 ####################################################################################################
-generate_summary_table <- function(sample_name,
-                                   image_ids,
-                                   cell_types,
-                                   tissue_list,
-                                   markers_phenotyped,
-                                   markers_scored,
-                                   thresholds,
-                                   tissue_table){
-    # ********************************************************************************************
-    # Generate a table where each row contains values for a given sample, image ID,  cell type and
-    # tissue type combination. The summary_table has the following columns:
-    #  - sample_name : name of sample.
-    #  - image_id    : name of image subset within the sample.
-    #  - tissue_type : name of tissue (e.g. "stroma", "tumor").
-    #  - cell_type    : name of cell type. Either an individual marker or a combination (e.g. "CD4", "CD8p_FPXP3n").
-    #  - threshold   :  threshold value for mean marker intensity values. These are the threshold that are used to
-    #                  reclassify the marker intensity values into 0/1 values. Note that these values only exist
-    #                  for the rows corresponding to individual markers (combination cell types and Total rows
-    #                  have no values in the column).
-    #  - SurfacePIX : surface of each cellType in pixel units.
-    #  - SurfaceMM2 : surface of each cellType, in square mm.
-    #  - CellDensity: density of cells per square mm.
-    #  - CellCount  : cell count for the given cell type in the given tissue type.
-    #  - IntMean    : mean value of marker intensity for the cell belonging to the row's cellType.
-    #  - IntMedian  : median value   "  "  "
-    #  - IntMin     : minimum value  "  "  "
-    #  - IntMax     : maximum value  "  "  "
-    #  - IntSD      : standard deviation value "  "  "
-    #
-    #   SampleName      ImageID     CellType TissueType Threshold SurfacePIX  SurfaceMM2
-    #    His2757_7        Total          CD4     Stroma       0.5         NA          NA
-    #    His2757_7        Total          CD4      Tumor       0.5         NA          NA
-    #    His2757_7        Total        FOXP3     Stroma       0.2         NA          NA
-    #    His2757_7        Total        FOXP3      Tumor       0.2         NA          NA
-    #    His2757_7        Total  CD4p_FOXP3p     Stroma        NA         NA          NA
-    #    His2757_7        Total  CD4p_FOXP3p      Tumor        NA         NA          NA
-    #    His2757_7        Total        Total     Stroma        NA     299488          NA
-    #    His2757_7        Total        Total      Tumor        NA    2108192          NA
-    #    His2757_7  39995_14773          CD4     Stroma       0.5         NA          NA
-    #    His2757_7  39995_14773          CD4      Tumor       0.5         NA          NA
-    #    His2757_7  39995_14773        FOXP3     Stroma       0.2         NA          NA
-    #    His2757_7  39995_14773        FOXP3      Tumor       0.2         NA          NA
-    #    His2757_7  39995_14773  CD4p_FOXP3p     Stroma        NA         NA          NA
-    #    His2757_7  39995_14773  CD4p_FOXP3p      Tumor        NA         NA          NA
-    #    His2757_7  39995_14773        Total     Stroma        NA     149744          NA
-    #    His2757_7  39995_14773        Total      Tumor        NA    1054096          NA
-    #
-    #
-    # Input arguments:
-    #   sample_name: string. Name of sample.
-    #
-    # ********************************************************************************************
-    stopifnot(all(tissue_table[,'sample_name'] == sample_name))
+#' Reclass input 'cell_values' into a binary vector indicating whether a cell is positive for a
+#' given marker (1) or not (0). This function is for scored markers and expects 'cell_values'
+#' to be a vector of numeric values, the marker intensity values for the given marker.
+#'
+#' @param marker [string] Name of marker for which to reclass cells. This must be a single marker.
+#' @param cell_values [numeric vector] List of cell values (intensity values) to reclassify.
+#' @param tissue_type [string vector] Tissue type associated to each cell. This vector must have
+#'     the same length as [cell_values].
+#' @param thresholds [data frame] Reclassification threshold table. Must contain a "tissue_type"
+#'     column and a column bearing the name of the marker.
+reclass_cells_by_marker_scored <- function(marker, cell_values, tissue_type, thresholds){
+
+    # Verify input values.
+    stopifnot(is.numeric(cell_values))
+    stopifnot(length(cell_values) == length(tissue_type))
+    stopifnot(sort(unique(tissue_type[tissue_type != 'missing'])) == sort(thresholds$tissue_type))
+
+    # Reclass cell values depending on whether they are >= or < than the threshold.
+    # Values >= threshold get reclassified as 1, while values < threshold get reclassified as 0.
+    # The threshold value can be different for each tissue type.
+    thresholds = setNames(thresholds[,marker], thresholds[,'tissue_type'])
+    reclassed_values = as.numeric(sapply(1:length(cell_values),
+                                         function(x) cell_values[x] >= thresholds[tissue_type[x]]))
+
+    # If the tissue_type vector contains any "missing" values, this introduces NA values in the
+    # reclassified values output. Here we set those values to 0.
+    reclassed_values[which(is.na(reclassed_values))] = 0
+    return(reclassed_values)
+}
+####################################################################################################
+
+
+
+####################################################################################################
+#' Generate a table where each row contains values for a given sample, image ID,  cell type and
+#' tissue type combination. The summary_table has the following columns:
+#'
+#'   SampleName     ImageID TissueType             CellType Threshold SurfacePIX SurfaceMM2 CellDensity CellCount IntMean IntMedian IntMin IntMax IntSD
+#'     TMA_IF02       Total     stroma                 CD8p     -1.00         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total     stroma           CD8p_total     -1.00         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total     stroma                  GBp     -1.00         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total     stroma            GBp_total     -1.00         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total     stroma                KI67p     19.99         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total     stroma          KI67p_total     19.99         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total     stroma             CD8p_GBp        NA         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total     stroma       CD8p_GBp_total        NA         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total     stroma           CD8p_KI67p        NA         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total     stroma     CD8p_KI67p_total        NA         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total     stroma                Total        NA         NA 13431416.5          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total      tumor                 CD8p     -1.00         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total      tumor           CD8p_total     -1.00         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total      tumor                  GBp     -1.00         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total      tumor            GBp_total     -1.00         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total      tumor                KI67p     19.99         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total      tumor          KI67p_total     19.99         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total      tumor             CD8p_GBp        NA         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total      tumor       CD8p_GBp_total        NA         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total      tumor           CD8p_KI67p        NA         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total      tumor     CD8p_KI67p_total        NA         NA         NA          NA        NA      NA        NA     NA     NA    NA
+#'     TMA_IF02       Total      tumor                Total        NA         NA  2321735.6          NA        NA      NA        NA     NA     NA    NA
+#'
+#' @param sample_name [string]
+#' @param image_ids [string vector]
+#' @param cell_types [string vector]
+#' @param tissue_list [string vector]
+#' @param markers_phenotyped [string vector]
+#' @param markers_scored [string vector]
+#' @param thresholds [data frame]
+#' @param tissue_table [data frame]
+generate_summary_table <- function(sample_name, image_ids, cell_types, tissue_list,
+                                   markers_phenotyped, markers_scored, thresholds, tissue_table){
+
+    # Input check.
+    stopifnot(tissue_table[,'sample_name'] == sample_name)
 
     # Create summary table backbone.
     # *****************************
     # Add "Total" values to the list of image IDs and cell types. These represent the total for
-    # all image IDs, and the total for all cell types (i.e. all cell types together).
+    # all image IDs, and the total for all cell types, i.e. all cell types together.
     image_ids  = c('Total', image_ids)
     cell_types = c(cell_types, 'Total')
 
-    # Compute nuber of rows of the summary_table (i.e. image ID, cell type and tissue type combinations)
+    # Compute number of rows of the summary_table, i.e. image ID, cell type and tissue type
+    # combinations.
     row_nb = length(tissue_list) * length(cell_types) * length(image_ids)
 
     # Create table.
@@ -159,31 +149,31 @@ generate_summary_table <- function(sample_name,
     summary_table[summary_table[,'CellType'] %in%
                   paste0(rep(markers_phenotyped, each=2), c('p','p_total')), 'Threshold'] = -1
 
-    # Scored markers get the threshold value extracted from the thresholds table.
+    # Scored markers get their threshold value extracted from the thresholds table.
     for(marker in markers_scored){
     for(tissue in tissue_list){
-        stop("######## NOT IMPLEMENTED YET")
-        tmpColNb = which( summary_table[,'CellType'] %in% paste0(marker, c('p','p_total'), sep='') &
-                          summary_table[,'TissueType'] == tissue )
-        summary_table[tmpColNb,'Threshold'] = threshold_table[sample_name,marker,tissue]
+        col_index = which(summary_table[,'CellType'] %in% paste0(marker, c('p','p_total')) &
+                          summary_table[,'TissueType'] == tissue)
+        summary_table[col_index, 'Threshold'] = thresholds[thresholds$tissue_type == tissue, marker]
     }
     }
 
 
-    # Add surface values in MM2 to summary table.
+    # Add surface values in mm2 to summary table.
     # ******************************************
     # Add the surface values for each image ID and tissue type to the "Total" cell type row of the
     # summary table.
     for(image_id in image_ids){
     for(tissue in tissue_list){
-        row_nb = which(summary_table$ImageID    == image_id &
-                       summary_table$CellType   == 'Total'  &
-                       summary_table$TissueType == tissue)
+        row_index = which(summary_table$ImageID    == image_id &
+                          summary_table$CellType   == 'Total'  &
+                          summary_table$TissueType == tissue)
         surface_rows = switch(ifelse(image_id == 'Total', 1, 2),
                               which(tissue_table[,'tissue_category']==tissue),
                               which(tissue_table[,'tissue_category']==tissue &
                                     tissue_table[,'image_id']==image_id))
-        summary_table[row_nb, 'SurfaceMM2'] = sum(tissue_table[surface_rows, 'region_area_surface'])
+        summary_table[row_index, 'SurfaceMM2'] = sum(tissue_table[surface_rows,
+                                                                  'region_area_surface'])
     }
     }
 
@@ -195,46 +185,46 @@ generate_summary_table <- function(sample_name,
 
 
 ####################################################################################################
+#' Computes the following statistics for all cell types of a given image_id and tissue type:
+#'
+#'   - cell count      : number of cells with type "cell_type" in tissue "tissue_type".
+#'   - intensity mean  : mean intensity value for cells matching "cell_type" and "tissue_type".
+#'   - intensity median: median ...
+#'   - intensity min   : minimum ...
+#'   - intensity max   : maximum ...
+#'   - intensity SD    : standard deviation ...
+#'
+#' The function returns a data frame with the statistic values in the same order as listed above.
+#'
+#' @param image_id [string] image_id for which the statistics should be computed. If this value is
+#'     set to "Total" the statistics are computed on all images in cell_table.
+#' @param tissue_type [string] Tissue type, e.g. "stroma", "tumor".
+#' @param cell_types [string] cell type, e.g. "CD4", "CD8", "CD4_CD8".
+#' @param cell_table [data frame] Data frame containing MEAN and RECLASSIFIED marker intensity
+#'     values.
+#'
 cell_type_statistics <- function(image_id, tissue_type, cell_types, cell_table){
-    # *******************************************************************************************
-    # Computes the following statistics for all cell types of a given image_id and tissue type:
-    #  - cell count      : number of cells with type "cell_type" in tissue "tissue_type".
-    #  - intensity mean  : mean intensity value for cells maching "cell_type" and "tissue_type".
-    #  - intensity median: median ...
-    #  - intensity min   : minimum ...
-    #  - intensity max   : maximum ...
-    #  - intensity SD    : standard deviation ...
-    #
-    # The function returns a data frame with the statistic values in the same order as listed above.
-    #
-    # Input arguments:
-    #   cell_type  : string describing cell type, e.g. "CD4", "CD8", "CD4_CD8".
-    #   tissue_type: string for tissue type, e.g. "stroma", "tumor".
-    #   cell_table : data frame containing MEAN and RECLASSIFIED marker intensity values,
-    #                      in the format as returned by the load_cell_data() function.
-    #   image_id   : string giving the image_id value of the subset image for which the
-    #                statistics should be computed. If this value is set to "Total" (the
-    #                default), then the statistics are computed on all images contained in
-    #                the cell_table.
-    # *******************************************************************************************
 
     # Create return data frame.
-    cell_types = c(cell_types, 'Total')
     output_df = data.frame('ImageID'    = image_id,
                            'TissueType' = tissue_type,
-                           'CellType'   = cell_types,
+                           'CellType'   = c(cell_types, 'Total'),
                            'CellCount'  = 0,
-                           row.names    = cell_types,
+                           'IntMean'    = NA,
+                           'IntMedian'  = NA,
+                           'IntMin'     = NA,
+                           'IntMax'     = NA,
+                           'IntSD'      = NA,
+                           row.names    = c(cell_types, 'Total'),
                            stringsAsFactors = FALSE)
-    output_df[,c('IntMean', 'IntMedian', 'IntMin', 'IntMax', 'IntSD')] = NA
 
-    # Subset cell_table to keep only the rows that are matching the requested "tissue_category"
-    # and "image_id" values. If the image ID is 'Total', then we only subset by tissue type
-    # because it corresponds values for the sum accross all image_id values.
+    # Subset cell_table to keep only the rows that are matching the requested tissue type and
+    # image_id value. If image_id is 'Total', only subset by tissue type to get the sum across all
+    # image_id values.
     # Note: it's much faster to first subset by image_id and then by tissue_type than the reverse.
-    # get("image_id", 1L)
-    if(image_id != 'Total') cell_table = cell_table[cell_table$image_id==image_id, ]
-    cell_table = cell_table[cell_table$tissue_category==tissue_type, ]
+    if(image_id != 'Total') cell_table = cell_table[cell_table$image_id == image_id, ]
+    cell_table = cell_table[cell_table$tissue_category == tissue_type, ]
+
     # If the subset has 0 rows, the image ID has no cells for the given tissue type. This does
     # sometimes occur.
     if(nrow(cell_table) == 0) return(output_df)
@@ -252,7 +242,7 @@ cell_type_statistics <- function(image_id, tissue_type, cell_types, cell_table){
 
 
     # Loop through all cell types and compute statistics
-    for(cell_type in cell_types[-length(cell_types)]){
+    for(cell_type in cell_types){
 
         # Split the cell type into individual markers.
         # *******************************************
@@ -284,8 +274,8 @@ cell_type_statistics <- function(image_id, tissue_type, cell_types, cell_table){
         #              to the target cell_type.
         #  -> regular: keep only cells (rows of table) that are positive for the markers of the
         #              target cell_type and negative for all other markers.
-        row_sum_cell_type = rowSums(sub_table[, in_cell_type, drop=F])
-        row_sum_total     = rowSums(sub_table[, c(in_cell_type,not_in_cell_type), drop=F])
+        row_sum_cell_type = rowSums(sub_table[, in_cell_type, drop=FALSE])
+        row_sum_total     = rowSums(sub_table[, c(in_cell_type,not_in_cell_type), drop=FALSE])
         if(endsWith(cell_type, '_total')){
             sub_table = sub_table[row_sum_cell_type == length(in_cell_type),]
         } else{

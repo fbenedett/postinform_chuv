@@ -36,6 +36,8 @@ inputdir_check <- function(input_dir, output_dir){
     # Verify that input parameters and sample rename files are present, and if needed rename them.
     rename_file_by_pattern(file_name=PARAMETERS_FILE, pattern='param', dir_name=input_dir,
                            out_dir=output_dir, raise_error_if_absent=TRUE)
+    rename_file_by_pattern(file_name=THRESHOLDS_FILE, pattern='threshold', dir_name=input_dir,
+                           out_dir=output_dir, raise_error_if_absent=FALSE)
     rename_file_by_pattern(file_name=SAMPLE_RENAME_FILE, pattern='rename', dir_name=input_dir,
                            out_dir=output_dir, raise_error_if_absent=FALSE)
     return(invisible(NULL))
@@ -104,7 +106,6 @@ standardize_and_split_cell_data <- function(input_file,
                                             phenotype_confidence_threshold,
                                             delete_input_file = FALSE){
     # ********************************************************************************************
-    #
     # Differences between inForm versions:
     # version 2.2
     #  - *_tissue_seg_data_summary.txt files contain a column named "Region Area (pixels)".
@@ -113,7 +114,7 @@ standardize_and_split_cell_data <- function(input_file,
     #  - a new column named "Annotation ID" is added to *_cell_seg_data.txt.
     #  - *_tissue_seg_data_summary.txt files contain column named "Region Area (square microns)"
     #  - in addition the "Sample ID" column of the *_cell_seg_data.txt files no longer contains
-    #    the imageID values. These are now present in the "Annotation ID" column.
+    #    the image ID values. These are now present in the "Annotation ID" column.
     #
     #
     # Input arguments:
@@ -125,7 +126,7 @@ standardize_and_split_cell_data <- function(input_file,
     #   delete_input_file: if TRUE, the input_file is deleted after it was split by samples.
     # ********************************************************************************************
 
-    # Load input table. Verifty it is not empty and standardize the column names.
+    # Load input table. Verify it is not empty and standardize the column names.
     input_table = read.table(input_file, sep='\t', as.is=T, header=T,
                              colClasses='character', check.names=T, strip.white=T)
     if(nrow(input_table) == 0) raise_error('Input file has zero rows.', file = input_file)
@@ -148,7 +149,10 @@ standardize_and_split_cell_data <- function(input_file,
     sample_names = extract_sample_name(input_table[,'sample_name'], input_file=input_file)
     input_table = input_table[sample_names %in% samples,]
     sample_names = sample_names[sample_names %in% samples]
-    if(nrow(input_table) == 0) raise_error('Input file has zero rows.', file = input_file)
+    if(nrow(input_table) == 0) raise_error(
+        msg = 'No matching values found in [sample_name] column for any of the input samples',
+        file = input_file,
+        items_to_list = samples)
 
 
     # Extract image ID values. If the "annotation_id" column is present (inForm 2.4), extract
@@ -173,7 +177,7 @@ standardize_and_split_cell_data <- function(input_file,
         file_values_are_from = input_file)
 
 
-    # Reclass 'phenotype_values' for rows where confidence < phenotype_confidence_threshold
+    # Re-class 'phenotype_values' for rows where confidence < phenotype_confidence_threshold
     # to the value of 'MISSING'.
     phenotype_values[which(confidence_values < phenotype_confidence_threshold)] = 'MISSING'
 
@@ -352,17 +356,17 @@ standardize_and_split_tissue_data <- function(input_file,
 
 
 ####################################################################################################
+#' Standardize column names of input files.
+#'
+#' @param column_names [string vector] Names of columns to standardize.
+#' @param input_file [string] Path and name of file from which the columns were taken. Only used to
+#'     display an error message.
+#' @return Standardized column names.
 standardize_column_names = function(column_names, input_file){
-    # ********************************************************************************************
-    #
-    # Input arguments:
-    #  - column_names: string vector. Names of columns to standardize.
-    #  - input_file: file name from which the columns were taken. Only used to display an error
-    #                message.
-    # ********************************************************************************************
 
     # Replace any '.' in column names by an '_'. The '.' are generally introduced in column names
     # by R as a replacement of a non-authorized character such as a blank space or a bracket.
+    # For readability, multiple '.' are replaced by a single '_'.
     column_names = gsub(pattern='\\.+', replacement='_', x=column_names)
     column_names = gsub(pattern='_+$', replacement='', x=column_names)
 
@@ -382,10 +386,18 @@ standardize_column_names = function(column_names, input_file){
     for(i in grep(paste0(col_start_regexp, '.*_mean_.*'), x=column_names)){
         marker_name = sub(col_start_regexp, '', column_names[i])
         marker_name = sub('_.*$', '', marker_name)
+
+        # If the marker is present in the AUTHORIZED_MARKERS list, correct its capitalization if
+        # needed.
+        x = which(toupper(marker_name) == toupper(AUTHORIZED_MARKERS))
+        stopifnot(length(x) <= 1)
+        marker_name = ifelse(length(x) == 0, marker_name, AUTHORIZED_MARKERS[x])
+
+        # Rename column.
         column_names[i] = paste0(marker_name, '_mean')
     }
 
-    # Verify there is no duplicate column.
+    # Verify there are no duplicate columns.
     duplicated_columns = which(duplicated(column_names))
     if(length(duplicated_columns) > 0) raise_error(
         msg  = 'Duplicated column names found in input file:',
@@ -454,6 +466,8 @@ check_and_fix_phenotype_values <- function(phenotype_values,
             type = 'warning')
     }
 
+    # Replace
+
     # Substitute '-' with '_' in Phenotype values. This is for the case where a '-' was used as
     # separator value instead of a '_'.
     phenotype_values = gsub(pattern='-', replacement='_', phenotype_values)
@@ -473,11 +487,15 @@ check_and_fix_phenotype_values <- function(phenotype_values,
                               ignored = IGNORED_PHENOTYPES)) == 0) return(phenotype_values)
 
 
+    # Replace accepted NO_PHENOTYPE synonym values with NO_PHENOTYPE.
+    phenotype_values[which(toupper(phenotype_values) %in%
+                           toupper(c(NO_PHENOTYPE, NO_PHENOTYPE_SYNONYMS)))] = NO_PHENOTYPE
+
     # Replace accepted stroma and tumor synonyms with 'DAPIp' and 'CKp' respectively.
     for(x in 1:2) phenotype_values = gsub(
         pattern=paste0(rep(switch(x, AUTHORIZED_STROMA_VALUES, AUTHORIZED_TUMOR_VALUES), each=2),
                        c('', 'p'), collapse='|'),
-        replacement=switch(x,'DAPIp','CKp'), x=phenotype_values, ignore.case=TRUE)
+        replacement=switch(x, 'DAPIp', 'CKp'), x=phenotype_values, ignore.case=TRUE)
 
 
     # Correct capitalization and add a 'p' suffix (for 'positive') to any marker missing it.
@@ -678,15 +696,13 @@ check_marker_is_authorized <- function(marker_list, marker_type){
 
 
 ####################################################################################################
+#' Test whether a file contains "individual marker" values. This is simply done by looking at the
+#' file name. The convention is that individual marker files will contain at least one marker name
+#' in their file name.
+#' The function returns the list of markers in the file name, or character(0) if none is found.
 markers_in_file_name <- function(file_name){
-    # ********************************************************************************************
-    # Test whether a file contains "individual marker" values. This is simply done by looking at
-    # the file name. The convention is that individual marker files will contain at least one
-    # marker name in their file name.
-    # The function returns the list of markers in the file name, or character(0) if none is found.
-    # ********************************************************************************************
     return(sort(as.character(names(unlist(
-        sapply(AUTHORIZED_MARKERS, FUN=function(x) grep(x, file_name, ignore.case=T)))))))
+        sapply(AUTHORIZED_MARKERS, FUN=function(x) grep(x, basename(file_name), ignore.case=T)))))))
 }
 ####################################################################################################
 

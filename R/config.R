@@ -18,11 +18,13 @@ AUTHORIZED_TISSUES       <<- c('stroma', 'tumor', 'dermis', 'epidermis', 'melano
 AUTHORIZED_COMPARTMENTS  <<- c('nucleus', 'membrane', 'cytoplasm', 'entire_cell')
 AUTHORIZED_STROMA_VALUES <<- c('DAPI', 'stroma', 'other')
 AUTHORIZED_TUMOR_VALUES  <<- c('CK', 'tumor')
-AUTHORIZED_MARKERS       <<- c('CAL', 'CD3', 'CD4', 'CD8', 'CD11C', 'CD15', 'CD20', 'CD56', 'CD68',
+AUTHORIZED_MARKERS       <<- c('CAL', 'CD3', 'CD4', 'CD8', 'CD11c', 'CD15', 'CD20', 'CD56', 'CD68',
                                'CD103', 'CD163', 'CD206', 'FOXP3', 'GB', 'gH2AX', 'gH2AXN', 'IDO',
                                'IL10R', 'Keratin', 'KI67', 'PD1', 'PDL1', 'PERFORIN', 'SOX10',
                                'WT1', 'CK', 'VISTA')
 IGNORED_PHENOTYPES       <<- c('DAPIp', 'MISSING')
+NO_PHENOTYPE             <<- 'MISSING'
+NO_PHENOTYPE_SYNONYMS    <<- c('ARTEFACT', 'ARTEFACTS', 'OTHER')
 
 DATAREDUCE_SCRIPT      <<- file.path(dirname(dirname(sys.frame(1)$ofile)),
                                      'inst/bash/reduce_file_size.sh')

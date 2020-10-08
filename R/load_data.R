@@ -31,7 +31,7 @@ load_session_parameters <- function(session_root_dir){
     # ************
     # Check that at least one tissue type was provided and that all tissues are part of the
     # authorized list.
-    if(! 'tissues' %in% names(arg_values) ) raise_error(msg="Parameter 'tissues' is missing.",
+    if(! 'tissues' %in% names(arg_values)) raise_error(msg="Parameter 'tissues' is missing.",
                                                         file = PARAMETERS_FILE)
     arg_values[['tissues']] = tolower(arg_values[['tissues']])
     tissues = unique(arg_values[['tissues']])

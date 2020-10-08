@@ -26,7 +26,6 @@
 #' @return nothing.
 #' @examples
 #' postinform(input_file_or_dir=input_file, delete_input=FALSE, immucan_output=FALSE)
-#'
 postinform <- function(input_file_or_dir,
                      command = 'process',
                      output_suffix = '',
@@ -106,8 +105,8 @@ postinform <- function(input_file_or_dir,
 
 
 
-    # Run the Post-inForm pipeline
-    # **************************
+    # Run the post-inForm pipeline
+    # ****************************
     log_message(paste(rep('#', 80), collapse=''), padding='')
     log_message(paste0('Starting Post-inForm - version ', POSTINFORM_VERSION))
     log_message('**********************************')
@@ -178,8 +177,6 @@ postinform_pipeline <- function(input_dir,
     #  - search for cell and tissue segmentation files in sub-directories or the session root.
     log_message('Input data check:')
     log_message(paste('input directory:', input_dir), level=2)
-
-    #delete_unnecessary_files(input_dir)
     inputdir_check(input_dir, output_dir)
     log_message('input dir check: OK', level=2)
 
@@ -406,9 +403,9 @@ run_sample <- function(sample_name, input_parameters){
         thresholds = input_parameters$thresholds
         # Keep only the thresholds for the current sample.
         thresholds = thresholds[which(thresholds[,'sample_name'] == sample_name), ]
-        thresholds_subset = as.matrix(thresholds[sample_name,,])
-        rownames(thresholds_subset) = dimnames(thresholds)[[2]]
-        colnames(thresholds_subset) = dimnames(thresholds)[[3]]
+        #thresholds_subset = as.matrix(thresholds[sample_name,,])
+        #rownames(thresholds_subset) = dimnames(thresholds)[[2]]
+        #colnames(thresholds_subset) = dimnames(thresholds)[[3]]
     } else thresholds = NULL
 
 
@@ -434,7 +431,7 @@ run_sample <- function(sample_name, input_parameters){
 
     # Load cell segmentation data for current sample.
     # **********************************************
-    # Load data and convert marker intensity colums to numeric values.
+    # Load data and convert marker intensity columns to numeric values.
     cell_table = read.table(file=file.path(session_root_dir, sample_name,
                                            paste0(sample_name, CELL_FILES_EXTENSION)),
                             sep='\t', as.is=T, h=T,
@@ -462,17 +459,25 @@ run_sample <- function(sample_name, input_parameters){
 
     # Reclassify cells based on marker intensity (scoring) or phenotype data (phenotyping).
     # ************************************************************************************
-    # For each marker, a cell is reclassifed as either 1 (positive for marker) or 0 (negative).
-    # Reclassification is done through phenotyping for markers part of the 'markers_phenotyped'
-    # list, and by scoring for markers part of the 'markers_scored' list.
-    tmp = sapply(c(markers_phenotyped, markers_scored),
-                 function(x) reclass_cells_by_marker(
-                     marker      = x,
-                     cell_values = switch(ifelse(x %in% markers_phenotyped, 1, 2),
-                                          cell_table[,'phenotype'],
-                                          cell_table[,paste0(x,'_mean')]),
-                     thresholds  = thresholds))
-    colnames(tmp) = paste(colnames(tmp), '_reclassified', sep='')
+    # For each marker, a cell is reclassified as either 1 (positive for marker) or 0 (negative).
+    # Reclassification is done through phenotyping for markers in the 'markers_phenotyped' list,
+    # and by scoring for markers in the 'markers_scored' list.
+    tmp = NULL
+    # Reclass phenotyped markers, if any.
+    if(length(markers_phenotyped) > 0) tmp = sapply(
+        markers_phenotyped,
+        FUN = function(marker) reclass_cells_by_marker_phenotyped(marker, cell_table[,'phenotype']))
+
+    # Reclass scored markers, if any.
+    if(length(markers_scored) > 0) tmp = cbind(tmp, sapply(
+        markers_scored,
+        FUN = function(marker) reclass_cells_by_marker_scored(marker,
+                                                              cell_table[,paste0(marker,'_mean')],
+                                                              cell_table[,'tissue_category'],
+                                                              thresholds)))
+
+    stopifnot(ncol(tmp) == length(c(markers_phenotyped, markers_scored)))
+    colnames(tmp) = paste0(colnames(tmp), '_reclassified')
     cell_table = cbind(cell_table, tmp)
 
 
@@ -493,12 +498,9 @@ run_sample <- function(sample_name, input_parameters){
     # and standard deviation values, for each tissue type, cell type and image ID combination.
     # Note: I timed this loop with both for() and lapply(), and for() was a few seconds faster.
     stat_table = NULL
-    for(image_id in c('Total',image_ids)){
-        for(tissue_type in tissue_list){
-            stat_table = rbind(stat_table,
-                               cell_type_statistics(cell_type=cell_types, tissue_type=tissue_type,
-                                                    image_id=image_id, cell_table=cell_table))
-        }
+    for(image_id in c('Total', image_ids)){
+        for(tissue_type in tissue_list) stat_table = rbind(
+            stat_table, cell_type_statistics(image_id, tissue_type, cell_types, cell_table))
     }
     stopifnot(nrow(stat_table) == nrow(summary_table))
     stopifnot(stat_table$ImageID == summary_table$ImageID)
@@ -514,7 +516,8 @@ run_sample <- function(sample_name, input_parameters){
         # "CD11cp_total".
         row_id = which(summary_table[,'ImageID']  == summary_table[x,'ImageID'] &
                            summary_table[,'TissueType'] == summary_table[x,'TissueType'] &
-                           summary_table[,'CellType'] == paste0(summary_table[x,'CellType'], '_total'))
+                           summary_table[,'CellType'] == paste0(summary_table[x,'CellType'],
+                                                                '_total'))
         # exactly one match should be found.
         stopifnot(length(row_id) == 1)
         # "_total" cell type must be >= the cell count of the regular cell type.
@@ -530,23 +533,23 @@ run_sample <- function(sample_name, input_parameters){
     # millimeters.
     for(image_id in c('Total', image_ids)){
         for(tissue in tissue_list){
-            row_id    = which(summary_table$ImageID == image_id & summary_table$TissueType == tissue)
-            row_total = which(summary_table$ImageID    == image_id &
-                                  summary_table$TissueType == tissue &
-                                  summary_table$CellType   == 'Total')
+            row_id = which(summary_table$ImageID == image_id & summary_table$TissueType == tissue)
+            row_total = which(summary_table$ImageID == image_id &
+                              summary_table$TissueType == tissue &
+                              summary_table$CellType   == 'Total')
 
             # Compute surface in pixels for each cell type.
-            cell_type_surface_as_proportion = switch((summary_table[row_total, 'CellCount'] == 0) + 1,
-                                                     summary_table[row_id,'CellCount'] /
-                                                         summary_table[row_total,'CellCount'], 0)
+            cell_type_surface_as_proportion = switch((summary_table[row_total, 'CellCount'] == 0)+1,
+                                                      summary_table[row_id,'CellCount'] /
+                                                      summary_table[row_total,'CellCount'], 0)
             total_tissue_surface = summary_table[row_total, 'SurfaceMM2']
             summary_table[row_id, 'SurfaceMM2'] = round(cell_type_surface_as_proportion *
-                                                            total_tissue_surface)
+                                                        total_tissue_surface)
 
             # Compute cell density for the entire tissue for each cell type.
             summary_table[row_id, 'CellDensity'] = switch((total_tissue_surface == 0) + 1,
-                                                          round(summary_table[row_id,'CellCount'] /
-                                                                    total_tissue_surface * 1e+06, 3), 0)
+                                                           round(summary_table[row_id,'CellCount'] /
+                                                                 total_tissue_surface*1e+06, 3), 0)
         }
     }
     # Verify no NA value is left in the surface and cell density columns of the summary table.
@@ -560,14 +563,14 @@ run_sample <- function(sample_name, input_parameters){
 
     # Compute cell count statistics.
     # ******************************
-    # Compute a number of statistics for the cell counts of each cell type accross the image
+    # Compute a number of statistics for the cell counts of each cell type across the image
     # subsets of the sample. The statistics we compute are the following:
-    #  - Total cell count accross all image subsets (this is also available in the summary_table).
-    #  - Mean value of cell counts accross all image subsets.
-    #  - Median "  "  "
-    #  - Min "  "  "
-    #  - Max "  "  "
-    #  - Standard deviation "  "  "
+    #   - Total cell count across all image subsets (this is also available in the summary_table).
+    #   - Mean value of cell counts across all image subsets.
+    #   - Median "  "  "
+    #   - Min "  "  "
+    #   - Max "  "  "
+    #   - Standard deviation "  "  "
     count_stat_table = summary_table[summary_table$ImageID=='Total',
                                      c('SampleName','CellType','TissueType','CellCount')]
     names(count_stat_table)[4] = 'TotalCount'

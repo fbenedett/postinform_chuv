@@ -53,12 +53,16 @@ generate_parameter_file_from_legacy_input <- function(session_root_dir){
         } else scored_markers = c(scored_markers, marker)
     }
 
-    # Rename thresholds file.
-    file.rename(threshold_file, file.path(session_root_dir, THRESHOLDS_FILE))
+    # Rename thresholds file, or delete it if there are no scored markers.
+    if(length(scored_markers) > 0){
+        file.rename(threshold_file, file.path(session_root_dir, THRESHOLDS_FILE))
+    } else{
+        file.remove(threshold_file)
+    }
 
     # Create new "parameters.txt" file.
-    file_connection = file(file.path(session_root_dir, "parameters.txt"), open="w")
-    writeLines(paste0("# Auto-generated parameter file for ", basename(session_root_dir), "."),
+    file_connection = file(file.path(session_root_dir, "parameters.txt"), open='w')
+    writeLines(paste0("# Auto-generated parameter file for ", basename(session_root_dir), '.'),
                con=file_connection)
     writeLines("samples:", con=file_connection)
     for(x in samples) writeLines(x, con=file_connection)
