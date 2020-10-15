@@ -355,7 +355,16 @@ guess_file_encoding = function(input_file){
     host_os = guess_host_os()
     if(host_os == 'linux') tmp = system2("file", args=c("-i", paste0("'",input_file,"'")), stdout=T)
     if(host_os == 'osx') tmp = system2("file", args=c("-I", paste0("'",input_file,"'")), stdout=T)
-    if(host_os == 'windows') return("native.enc")
+    if(host_os == 'windows'){
+        # Determine encoding by looking at the first 2 characters.
+        file_connection = file(input_file, open='rb')
+        file_start = paste(readBin(con=file_connection, what='raw', n=2), collapse='')
+        close(file_connection)
+        # UTF-8 with BOM starts with hexadecimal characters "ef bb". UTF-16 LE with "ff fe".
+        if(file_start == 'efbb') return("UTF-8-BOM")
+        if(file_start == 'fffe') return("UTF-16LE")
+        return("UTF-8")
+    }
     if(host_os == 'unknown') raise_error("Unable to detect host OS.")
     encoding_type = sub(pattern='^.* charset=', replacement='', x=tmp)
 

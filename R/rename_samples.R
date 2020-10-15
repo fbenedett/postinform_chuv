@@ -40,7 +40,7 @@ rename_samples <- function(samples, session_root_dir){
 
             # Case 2: the data must be split into 2.
             } else if(length(new_name) == 2){
-                # Get imageID values that corresponds to the 2 sub-samples in the original sample.
+                # Get image ID values that corresponds to the 2 sub-samples in the original sample.
                 if(file_extension == CELL_FILES_EXTENSION){
                     stopifnot('cell_y_position' %in% colnames(tmp))
                     image_id_split = split_by_coordinate(coordinates = tmp[,'cell_y_position'],

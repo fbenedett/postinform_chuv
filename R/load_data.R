@@ -177,7 +177,7 @@ read_parameters_file <- function(input_file){
             # Verify that a parameter name has already been defined, and that the parameter value
             # line does not contain any ':' character.
             if(is.null(parameter_name)) raise_error(
-                msg="The first non-comment line of parameter files must contain a parameter value.",
+                msg="The first non-comment line of a parameter file must contain a parameter value.",
                 file=input_file)
             if(grepl(pattern=':', x=line)) raise_error(
                 msg="':' characters are only allowed as parameter delimitors.", file=input_file)
