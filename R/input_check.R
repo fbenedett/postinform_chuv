@@ -709,67 +709,50 @@ markers_in_file_name <- function(file_name){
 
 
 ####################################################################################################
+#' Performs the following checks on the input data given a list of samples:
+#'  * Input samples are present in the raw data.
+#'  * Samples present in the raw data are also present in input parameter file [warning].
+#'  * Each sample sub-directory contains exactly one cell and one tissue segmentation file.
 #'
-#' @param samples_from_parameters Sample names passed as input parameter by the user.
-#' @param session_root_dir [string] Root directory for the current session.
-check_sample_names <- function(samples_from_parameters, session_root_dir){
+#' @param samples [str vector] sample names passed in input by the user.
+#' @param root_dir [str] Root directory for the current session.
+#' @return [NULL]
+check_sample_data <- function(samples, root_dir){
 
-    # Retrieve samples present in data from subdirectory names present in session_root_dir.
-    samples_from_data = sort(basename(list.dirs(session_root_dir, full.names=TRUE, recursive=F)))
+    # Retrieve samples present in data based on sub-directory names present in session's root_dir.
+    samples_from_data = sort(basename(list.dirs(root_dir, full.names=TRUE, recursive=F)))
 
-    # If samples present in the raw data are missing from the input parameters, raise warning.
-    missing_samples = samples_from_data[!samples_from_data %in% samples_from_parameters]
-    if(length(missing_samples) > 0) raise_error(
+    # Verify all samples passed in input by the user are present in the raw data.
+    if(length(setdiff(samples, samples_from_data)) > 0) raise_error(
+        msg = 'One or more samples listed in the input parameters are missing from the raw data:',
+        items_to_list = setdiff(samples, samples_from_data))
+
+    # Verify all samples present in the raw data are also present in the input parameters. If not,
+    # raise a warning.
+    if(length(setdiff(samples_from_data, samples)) > 0) raise_error(
         msg = 'One or more samples present in the data are not listed in input parameters:',
-        items_to_list = missing_samples,
+        items_to_list = setdiff(samples_from_data, samples),
         type = 'warning')
 
-    # All sample names passed as input by the user must be present in the data.
-    missing_samples = samples_from_parameters[!samples_from_parameters %in% samples_from_data]
-    if(length(missing_samples) > 0) raise_error(
-        msg = 'One or more samples listed in the input paramters are missing from the data:',
-        items_to_list = missing_samples)
-}
-####################################################################################################
-
-
-
-####################################################################################################
-check_sample_directories <- function(sample_list, session_root_dir){
-    # ********************************************************************************************
-    #
-    #  sample_list     : samples to process in the current analysis.
-    #  session_root_dir: root directory for the current session.
-    # ********************************************************************************************
+    # Verify each sample sub-directory contains exactly one cell and one tissue segmentation file.
     error_msg = NULL
-    for(sample_name in sample_list){
+    for(sample_name in samples){
+        sample_dir = file.path(root_dir, sample_name)
+        for(file_type in c(CELL_FILES_EXTENSION, TISSUE_FILES_EXTENSION)){
+            files = list.files(path=sample_dir, pattern=paste0('.*', file_type, '$'),
+                               all.files=F, full.names=F, recursive=F, ignore.case=F)
 
-        # Verify there is a subdirectory for the sample.
-        sample_dir = file.path(session_root_dir, sample_name)
-        if(!dir.exists(sample_dir)){
-            error_msg = c(error_msg, paste0(sample_name,': no subdirectory found for sample.'))
-            next
+            if(length(files) == 0){
+                error_msg = c(error_msg, paste0('Sample [', sample_name, ']: no [',
+                                                file_type, '] file found.'))
+            } else if(length(files) > 1){
+                error_msg = c(error_msg, paste0('Sample [', sample_name,']: more than one [',
+                                                file_type, '] file in subdirectory.'))
+            }
         }
-
-        # Verify that each sample subdirectory contains exactly one cell and one tissue
-        # segmentation file.
-        cell_files = list.files(path=sample_dir, pattern=paste0('.*', CELL_FILES_EXTENSION, '$'),
-                                all.files=F, full.names=F, recursive=F, ignore.case=F)
-        tissue_files = list.files(path=sample_dir, pattern=paste0('.*',TISSUE_FILES_EXTENSION,'$'),
-                                  all.files=F, full.names=F, recursive=F, ignore.case=F)
-        if(length(cell_files) == 0) error_msg = c(error_msg,
-                                          paste0(sample_name,': no cell segmentation data found.'))
-        if(length(tissue_files) == 0) error_msg = c(error_msg,
-                                        paste0(sample_name,': no tissue segmentation data found.'))
-        if(length(cell_files) > 1) error_msg = c(error_msg,
-                     paste0(sample_name,': more than one cell segmentation file in subdirectory.'))
-        if(length(tissue_files) > 1) error_msg = c(error_msg,
-                   paste0(sample_name,': more than one tissue segmentation file in subdirectory.'))
     }
-    if(length(error_msg) > 0){
-        log_message(paste('ERROR:', error_msg), padding='')
-        raise_error('One or more errors in input data detected. See above.')
-    }
+    if(length(error_msg) > 0) raise_error(msg = "One or more errors detected in input data:",
+                                          items_to_list = error_msg)
 }
 ####################################################################################################
 

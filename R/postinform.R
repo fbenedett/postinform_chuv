@@ -164,10 +164,10 @@ postinform <- function(input_file_or_dir,
 #' @return nothing.
 #'
 postinform_pipeline <- function(input_dir,
-                              output_dir,
-                              command,
-                              immucan_output = FALSE,
-                              no_bash = FALSE){
+                                output_dir,
+                                command,
+                                immucan_output = FALSE,
+                                no_bash        = FALSE){
 
     # Input data check
     # ****************
@@ -176,12 +176,22 @@ postinform_pipeline <- function(input_dir,
     #  - load and check marker thresholds file.
     #  - search for cell and tissue segmentation files in sub-directories or the session root.
     log_message('Input data check:')
-    log_message(paste('input directory:', input_dir), level=2)
+    log_message(paste0('input directory [', input_dir, ']'), level=2)
     inputdir_check(input_dir, output_dir)
-    log_message('input dir check: OK', level=2)
 
+    # Load session parameters from "parameters.txt".
+    log_message('session parameters...', level=2)
     input_parameters = load_session_parameters(output_dir)
-    log_message('session parameters: OK', level=2)
+
+    # Optionally load "sample_rename.txt" values if the file is present.
+    if(file_test('-f', file.path(output_dir, SAMPLE_RENAME_FILE))){
+        log_message('sample rename file...', level=2)
+        sample_rename = load_sample_rename_file(file.path(output_dir, SAMPLE_RENAME_FILE))
+        input_parameters$sample_rename = sample_rename
+        check_sample_rename(sample_rename, original_samples=input_parameters$samples)
+        rm(sample_rename)
+    }
+
     log_message('completed', level=2, add_empty_line=TRUE)
     if(command == 'check') return(invisible(NULL))
 
@@ -273,23 +283,20 @@ postinform_pipeline <- function(input_dir,
     # Verify data is present for each sample.
     # **************************************
     # Verify all samples passed as input parameters are also present in the actual data.
-    check_sample_names(samples_from_parameters=input_parameters$samples, output_dir)
-    check_sample_directories(sample_list=input_parameters$samples, output_dir)
-
+    check_sample_data(samples=input_parameters$samples, root_dir=output_dir)
 
 
     # Input sample renaming.
     # *********************
-    if(file.exists(file.path(output_dir, SAMPLE_RENAME_FILE))){
+    if("sample_rename" %in% names(input_parameters)){
         log_message('Sample renaming:')
 
         # Modify sample names in input files.
-        rename_samples(samples=input_parameters$samples, output_dir)
+        rename_samples(sample_rename=input_parameters$sample_rename, root_dir=output_dir)
 
-        # Reload input parameters to update sample names.
-        input_parameters = load_session_parameters(output_dir)
-        check_sample_names(samples_from_parameters=input_parameters$samples, output_dir)
-        check_sample_directories(sample_list=input_parameters$samples, output_dir)
+        # Update input_parameters with new sample names.
+        input_parameters$samples = sort(unlist(input_parameters$sample_rename, use.names=FALSE))
+        check_sample_data(samples=input_parameters$samples, root_dir=output_dir)
 
         log_message('completed', level=2, add_empty_line=TRUE)
     }

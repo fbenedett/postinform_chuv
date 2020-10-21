@@ -76,7 +76,7 @@ merge_cell_data_files <- function(files_to_merge){
 
         # Merge data.
         # **********
-        # Merge data frame for the current marker with the global dataframe 'merged_df'.
+        # Merge data frame for the current marker with the global data frame 'merged_df'.
         if(is.null(merged_df)){
             merged_df = input_df
         } else{
@@ -119,36 +119,88 @@ merge_cell_data_files <- function(files_to_merge){
     # ***********************************************
     # In principle, the "Tissue Category" columns of all individual markers should contain the
     # same value. Here we verify that this is the case and then keep only one copy of them.
-    if(any(tissue_cat_df != tissue_cat_df[,1])){
-        diff_rows = sort(unique(unlist(lapply(2:ncol(tissue_cat_df),
-                                FUN=function(x) which(tissue_cat_df[x] != tissue_cat_df[,1])))))
+    diff_rows = sort(unique(unlist(lapply(2:ncol(tissue_cat_df),
+                            FUN=function(x) which(tissue_cat_df[x] != tissue_cat_df[,1])))))
+
+    # If the tissue category data frame contains >= 3 columns, we can try to perform majority
+    # ruling to resolve some of the conflicting values.
+    if(ncol(tissue_cat_df) >= 3){
+        fixed_row = NULL
         for(x in diff_rows){
+            # If one of the tissue values has a majority within the row, majority ruling is
+            # possible and the most frequent value is used.
             value_frequency = sort(table(as.character(tissue_cat_df[x,])), decreasing=T)
             stopifnot(length(value_frequency) >= 2)
-
-            # Case 1: one of the tissue values has a majority within the row. Majority ruling is
-            # possible and the most frequent value is used.
             if(as.numeric(value_frequency[1]) > as.numeric(value_frequency[2])){
                 tissue_cat_df[x,] = names(value_frequency)[1]
-                if(SHOW_TISSUE_CATEGORY_MISMATCH_WARNING) raise_error(
-                    msg = c(paste0('[tissue_category] values differ across files. ',
-                                   'Values were reconciled based on majority ruling.'),
-                            paste0('Offending row: ', x)),
-                    file = files_to_merge[1],
-                    type = 'warning')
-
-            # Case 2: majority ruling is not possible.
-            } else{
-                raise_error(
-                    msg = c('Could not merge individual marker files.',
-                            'Reason: tissue_category values differ across files with no majority.',
-                            paste0('Offending row: ', x),
-                            paste0('Offending values: ', paste(tissue_cat_df[x,], collapse=' '))),
-                    file = files_to_merge[1])
+                fixed_row = c(fixed_row, x)
             }
         }
-        stopifnot(all(tissue_cat_df == tissue_cat_df[,1]))
+
+        # Display warning message if any values were fixed through majority ruling.
+        if(length(fixed_row) > 0){
+            if(SHOW_TISSUE_CATEGORY_MISMATCH_WARNING) raise_error(
+                msg = c('[tissue_category] values differ across files.',
+                        'The following mismatches were reconciled based on majority ruling.',
+                        paste0('Number of offending rows: ',
+                               length(fixed_row), ' [',
+                               round(length(fixed_row)/nrow(tissue_cat_df)*100, 5),
+                               '%]'),
+                        'List of offending rows:'),
+                items_to_list = fixed_row,
+                file = files_to_merge[1],
+                type = 'warning')
+
+            # Re-evaluate the number of rows that differ between tissue category values.
+            diff_rows = sort(unique(unlist(lapply(2:ncol(tissue_cat_df),
+                                FUN=function(x) which(tissue_cat_df[x] != tissue_cat_df[,1])))))
+        }
+        rm(fixed_row, x)
     }
+
+    # At this point any remaining mismatch cannot be reconciled with majority ruling.
+    # Therefore the only options we have is to:
+    #  1. Delete the offending lines and trigger a warning if the number of offending lines
+    #     is smaller than a user-defined threshold.
+    #  2. If the number of offending lines is above the threshold, an error is generated.
+    if(length(diff_rows) > 0){
+        percentage_mismatch = length(diff_rows) / nrow(tissue_cat_df) * 100
+
+        # Case 1: the number of non-reconciled mismatches exceeds the user-defined limit.
+        if(percentage_mismatch > TISSUE_CATEGORY_MISMATCH_THRESHOLD) raise_error(
+            msg = c('Too many [tissue_category] values differ across files to merge and ',
+                    'could not be reconcilded through majority ruling.',
+                    paste0('Number of mismatches: ', length(diff_rows), " [",
+                           round(percentage_mismatch, 5), "%]"),
+                    paste0('Threshold above which this error is generated: ',
+                           TISSUE_CATEGORY_MISMATCH_THRESHOLD, '%'),
+                    paste0('The threshold value can be modified through the ',
+                           'TISSUE_CATEGORY_MISMATCH_THRESHOLD parameter in the ',
+                           'configuration file.'),
+                    'The offending rows are the following:'),
+            items_to_list = sapply(diff_rows,
+                                   function(x) paste0(x, ' [', tissue_cat_df[x,1],
+                                                      ', ', tissue_cat_df[x,2], ']')),
+            file = files_to_merge[1])
+
+        # Case 2: the number of mismatches is <= the threshold. We only display a warning.
+        if(SHOW_TISSUE_CATEGORY_MISMATCH_WARNING) raise_error(
+            msg = c('A number of [tissue_category] values differ across files and could not be',
+                    'reconcilded through majority ruling. Instead, the offending rows were deleted',
+                    'from the input data.',
+                    paste0('Number of mismatches: ', length(diff_rows), " [",
+                           round(percentage_mismatch, 5), "%]"),
+                    'The following lines had mismatches and were deleted:'),
+            items_to_list = sapply(diff_rows,
+                                   function(x) paste0(x, ' [', tissue_cat_df[x,1],
+                                                      ', ', tissue_cat_df[x,2], ']')),
+            file = files_to_merge[1],
+            type = 'warning')
+
+        # Set tissue category values that differ to NA.
+        tissue_cat_df[diff_rows, ] = NA
+    }
+
     # Add tissue category values to the merged data frame.
     merged_df[,'tissue_category'] = tissue_cat_df[,1]
 
@@ -185,18 +237,29 @@ merge_cell_data_files <- function(files_to_merge){
         if(length(differing_values) > 0){
             differing_values = as.vector(as.matrix(differences))[differing_values]
             raise_error(
-                msg=c(paste0('Values for column [', col_name, '] differ accross individual files'),
-                      paste0('to merge by more than ', MARKER_INTENSITY_THRESHOLD, ' at ',
+                msg=c(paste0('Values for column [', col_name, '] differ accross files to merge'),
+                      paste0('by more than ', MARKER_INTENSITY_THRESHOLD, ' at ',
                              length(differing_values), ' occurences [',
-                             round(length(differing_values)/nrow(marker_int_df)*100, 3), '%].'),
+                             round(length(differing_values)/nrow(marker_int_df)*100, 5), '%].'),
                       'Values from the first file (alphabetically) will be used.'),
                 file=dirname(files_to_merge[1]),
                 type = 'warning')
         }
     }
 
-    # Add marker intensity values to merged dataframe.
+    # Add marker intensity values to merged data frame.
     merged_df = cbind(merged_df, marker_int_df[, 1:length(marker_intensity_cols)])
+
+    # Delete rows that differed in tissue category. The stopifnot check is just to make sure the
+    # lines where deleted properly.
+    # TODO: at this point I'm using "which()" to identify the rows need to be removed, but this
+    #       creates a problem when there are no such rows, since then diff_rows = integer(0), and
+    #       [-integer(0),] is the same as [integer(0),] and thus removes all rows of the table!
+    #       So for now I'm guarding this statement with an if() check, but maybe there is a better
+    #       way of doing it.
+    if(length(diff_rows) > 0) merged_df = merged_df[-diff_rows,]
+    stopifnot(!any(is.na(merged_df)))
+    stopifnot(nrow(merged_df) > 0)
     return(merged_df)
 }
 ####################################################################################################
@@ -293,7 +356,7 @@ remove_duplicated_rows <- function(input_df, key_fields, file_name){
     duplicated_rows = which(duplicated(input_df[,key_fields]))
     if(length(duplicated_rows) > 0){
         input_df = input_df[-duplicated_rows,]
-        raise_error(msg  = 'The following duplicated rows were deleted from input file:',
+        raise_error(msg  = 'The following duplicated rows were deleted:',
                     file = file_name,
                     items_to_list = duplicated_rows,
                     type = 'warning')
