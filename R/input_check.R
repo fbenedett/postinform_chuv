@@ -701,8 +701,37 @@ check_marker_is_authorized <- function(marker_list, marker_type){
 #' in their file name.
 #' The function returns the list of markers in the file name, or character(0) if none is found.
 markers_in_file_name <- function(file_name){
-    return(sort(as.character(names(unlist(
-        sapply(AUTHORIZED_MARKERS, FUN=function(x) grep(x, basename(file_name), ignore.case=T)))))))
+
+    fname = basename(file_name)
+    markers_group = paste0('(', paste(AUTHORIZED_MARKERS, collapse='|'), ')')
+
+    # Find start position.
+    match_position = regexpr(paste0('_', markers_group), fname, ignore.case=T, useBytes=F)[1]
+    if(match_position == -1) return(NULL)
+    fname = substr(fname, start=match_position + 1, stop=nchar(fname))
+
+    found_markers = NULL
+    while(nchar(fname) > 0){
+
+        # When the "closing" character "_" is found, exit the function and return the list of
+        # markers that were found.
+        if(startsWith(fname, '_')) return(as.character(sapply(
+            found_markers,
+            FUN=function(x) AUTHORIZED_MARKERS[toupper(x) == toupper(AUTHORIZED_MARKERS)])))
+
+        # Test if the next item in the file name string is a valid marker. If yes, it is added
+        # to the list of markers. If not, the function returns NULL because the pattern is
+        # not a valid marker combination pattern.
+        match_position = regexpr(paste0('^', markers_group), fname, ignore.case=T, useBytes=F)
+        if(match_position == -1) return(NULL)
+        match_length = attr(match_position, "match.length")
+        found_markers = c(found_markers, substr(fname, 1, match_length))
+        fname = substr(fname, match_length + 1, nchar(fname))
+    }
+
+    # If this point is reached it means that there was no "_" at the end of the marker list
+    # in the file name and thus the file name does not match the pattern "_marker1marker2marker3_".
+    return(NULL)
 }
 ####################################################################################################
 

@@ -3,7 +3,7 @@
 # declaration is made at the top level.
 
 # Set application version.
-POSTINFORM_VERSION <<- '0.2.0'
+POSTINFORM_VERSION <<- '0.2.1'
 
 # Define default parameter values.
 DEFAULT_CELL_COMPARTMENT = 'nucleus'
