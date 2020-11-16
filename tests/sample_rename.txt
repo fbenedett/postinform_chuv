@@ -1,3 +1,6 @@
+# Values can be separated by spaces or tabs.
+# If a sample should be split, two space separated values should be provided under new_name.
+# Please remove the first 3 comment lines of this file before using it.
 old_name	new_name
-
-
+SAMPLE_OLD_NAME SAMPLE_NEW_NAME
+SAMPLE_OLD_NAME SAMPLE_NEW_NAME_1 SAMPLE_NEW_NAME_2
