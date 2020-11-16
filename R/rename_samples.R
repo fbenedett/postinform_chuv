@@ -81,7 +81,8 @@ rename_samples <- function(sample_rename, root_dir){
 load_sample_rename_file <- function(input_file){
 
     # Load file content by line. Lines starting with # are ignored.
-    file_content = read_file_as_vector(input_file, ignore_comments=TRUE, ignore_empty_line=TRUE)
+    file_content = read_file_as_vector(input_file, ignore_comments=TRUE,
+                                       ignore_empty_line=TRUE, remove_quotes=TRUE)
     if(length(file_content) < 2) raise_error(
         msg  = 'Sample renaming files must contain at least 2 lines: header + one sample.',
         file = input_file)

@@ -148,7 +148,8 @@ load_session_parameters <- function(session_root_dir){
 read_parameters_file <- function(input_file){
 
     # Load file content. Lines starting with a '#' are ignored.
-    file_content = read_file_as_vector(input_file)
+    file_content = read_file_as_vector(input_file, ignore_comments=TRUE,
+                                       ignore_empty_line=TRUE, remove_quotes=TRUE)
 
     # Parse file content.
     # ******************
@@ -196,20 +197,32 @@ read_parameters_file <- function(input_file){
 
 
 ####################################################################################################
-read_file_as_vector <- function(input_file, ignore_comments=TRUE, ignore_empty_line=TRUE){
+read_file_as_vector <- function(input_file, ignore_comments=TRUE,
+                                ignore_empty_line=TRUE, remove_quotes=FALSE){
     # ********************************************************************************************
     # Read a text file from disk and return its content as vector of strings, where each element
     # corresponds to a line in the file.
     # In addition, white spaces are trimmed, and lines starting with a # character are ignored.
     # ********************************************************************************************
     stopifnot(file.exists(input_file))
-    file_connection = file(input_file, open='r', encoding=guess_file_encoding(input_file))
-    file_content = readLines(con=file_connection)
-    close(file_connection)
-    file_content = trimws(file_content)
 
+    # Read file as binary values (hexadecimals) and convert them to a UTF-8 string.
+    file_encoding = guess_file_encoding(input_file)
+    file_content = stringi::stri_encode(readBin(con=input_file,
+                                                what='raw',
+                                                n=file.info(input_file)$size),
+                                        from=file_encoding, to='utf-8')
+
+    # Split the input string by lines, and trim any leading/trailing white spaces. Note that
+    # Windows files have `\r\n` end-of-line characters, and therefore, if present, we convert those
+    # to just simple "\n" characters.
+    file_content = trimws(unlist(strsplit(gsub(pattern='\r\n', replacement='\n', x=file_content),
+                                          split='\n')))
+
+    # Remove empty lines and comments, if asked for.
+    if(remove_quotes) file_content = gsub('"', '', file_content)
     if(ignore_empty_line) file_content = file_content[which(file_content != '')]
-    if(ignore_comments)   file_content = file_content[which(!startsWith(file_content, '#'))]
+    if(ignore_comments) file_content = file_content[which(!startsWith(file_content, '#'))]
     return(file_content)
 }
 ####################################################################################################
