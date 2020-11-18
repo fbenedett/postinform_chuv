@@ -1,8 +1,8 @@
 # Post-inForm
 Post-process cell immunofluorescence data produced by the inForm software.
 
-**Important:** for frequently asked questions, please seet the **Frequently-made mistakes** section
-on further down in this document.
+**Important:** for frequently asked questions, please see the **Frequently-made mistakes** section
+further down in this document.
 
 
 ##### Dependencies
@@ -10,13 +10,14 @@ The following R libraries are needed to run Post-inForm:
 * openxlsx
 * zip
 * checkmate
+* stringi
 
 These can be installed with the following R command: `install.packages(c("openxlsx", "zip", "checkmate", "stringi"))`
 <br>
 <br>
 
 
-## Examples of how to run Post-inForm
+## Examples of how to run post-inForm
 ##### Load Post-inForm source code:
 Download or clone the project's directory to your local machine. Then set `POSTINFORM_ROOT` to the
 `postinform` directory on your local machine and run the `source()` command in your R console, as
